@@ -7,6 +7,7 @@
 * if config=={object} then show modal with parameters. Parameters can be:
 *     shadeNoClose - do not close when shade is clicked
 *     escNoClose - do not close when Esc key is pressed
+*     onClose - function to be called when the modal is closed
 */
 (function ($) {
 
@@ -32,7 +33,9 @@
             m.css({
                 top: -screenH + 'px', 
                 'margin-top': (- Math.floor(m.outerHeight() / 2)) + 'px', 
-                opacity: 0, 
+                opacity: 0,
+                left: '50%',
+                'margin-left': (- Math.floor(m.outerWidth() / 2)) + 'px',
                 'z-index': zStart + (zStep + 1) * modalStack.length, 
                 position: 'fixed'
             });
@@ -69,7 +72,7 @@
         var i = findInStack (m);
         pageblocker = $('.pageblocker');
         if (pageblocker.length == 0) {
-            pageblocker = $('<div>').addClass('pageblocker');
+            pageblocker = $('<div>').addClass('pageblocker').css({position: fixed, top: 0; left: 0; width: 100%; height: 100%;});
             pageblocker.click(function () { 
                 params = modalStack[modalStack.length - 1].params;
                 if (params['shadeNoClose']) {
