@@ -1,21 +1,28 @@
 /**
-* Usage: 
-*     $(...).hmodal();
-*   or
-*     $(...).hmodal(config);
-* if config=='hide' then hide modal;
-* if config=={object} then show modal with parameters. Parameters can be:
-*     shadeNoClose - do not close when shade is clicked
-*     escNoClose - do not close when Esc key is pressed
-*     onClose - function to be called when the modal is closed
-*/
+ * Usage: 
+ *     $(...).hmodal();
+ *   or
+ *     $(...).hmodal(config);
+ * if config=='hide' then hide modal;
+ * if config=={object} then show modal with parameters. Parameters can be:
+ *     shadeNoClose - do not close when shade is clicked
+ *     escNoClose - do not close when Esc key is pressed
+ *     onClose - function to be called when the modal is closed. If it returns false then the modal refuses to hide.
+ *
+ * You can bind events too:
+ *   dialog.bind('hmodal.show', function () { console.log ( 'Modal is starting to show' ); })
+ *   dialog.bind('hmodal.shown', function () { console.log ( 'Modal has finished to show' ); })
+ *   dialog.bind('hmodal.hide', function () { console.log ( 'Modal is starting to hide' ); })
+ *   dialog.bind('hmodal.hidden', function () { console.log ( 'Modal has finished to hide' ); })
+ */
 (function ($) {
 
     var pageblocker,
         modalStack = [],
         zStep = 100,
         zStart = 10000
-        delay = 600;
+        delay = 600,
+        shift = 10;
 
     function findInStack (m) {
         if (!('get' in m)) return -1;
@@ -29,6 +36,7 @@
 
     function showElement(m) {
         if (!m.is(':visible')) {
+            m.trigger('hmodal.show', m);
             var screenH = pageblocker.outerHeight(true);
             m.css({
                 top: -screenH + 'px', 
@@ -42,14 +50,20 @@
             m.addClass('shown');
             m.animate({top: Math.floor(screenH/2) + 'px', opacity: 1}, delay, function () {
                 m.attr('tabindex', 0).css('outline', 'none').css({top: '50%'}).focus();
+                m.trigger('hmodal.shown', m);
             });
         }
     }
 
-    function hideElement(m) {
+    function hideElement(m, removeOnClose) {
         if (m.is(':visible')) {
+            m.trigger('hmodal.hide', m);
             m.animate({top: '-100%', opacity: 0}, delay, function () {
                 m.removeClass('shown');
+                m.trigger('hmodal.hidden', m);
+                if (removeOnClose) {
+                    m.remove();
+                }
             });
         }
     }
@@ -68,13 +82,29 @@
         pageblocker.fadeIn(delay);
     }
 
+    function resizeAll () {
+        for (var i in modalStack) {
+            resizeModal(modalStack[i]);
+        }
+    }
+
+    function resizeModal (m) {
+        var i = findInStack (m.el),
+            delta = i * shift;
+        m.el.animate({
+            'margin-top': (- Math.floor(m.el.outerHeight() / 2) + delta) + 'px',
+            'margin-left': (- Math.floor(m.el.outerWidth() / 2) + delta) + 'px',
+        }, 5);
+    }
+
     function openModal (m, p) {
-        var i = findInStack (m);
+        var i = findInStack (m),
+            params = p || {};
         pageblocker = $('.pageblocker');
         if (pageblocker.length == 0) {
             pageblocker = $('<div>').addClass('pageblocker').css({position: fixed, top: 0; left: 0; width: 100%; height: 100%;});
             pageblocker.click(function () { 
-                params = modalStack[modalStack.length - 1].params;
+                var params = modalStack[modalStack.length - 1].params;
                 if (params['shadeNoClose']) {
                     return;
                 }
@@ -83,23 +113,34 @@
             $('body').append(pageblocker);
         }
         if (i<0) {
+            if (m.closest('body').length==0) {
+                $('body').append(m);
+                params.removeOnClose = true;
+            }
+            m.addClass('hmodal');
             showElement(m);
             modalStack[modalStack.length] = {el: m, params: p || {}};
             rearrangeStack ();
-            $('.btn-modal-close', m).click(function () {closeModal();});
+            $('.btn-modal-close', m).click(function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                closeModal();
+            });
         }
     }
 
     function closeModal (m) {
         var i = m ? findInStack (m) : modalStack.length - 1;
         if (i >= 0) {
-            params = modalStack[i].params;
-            hideElement(modalStack[i].el);
+            var params = modalStack[i].params;
+            if (typeof params.onClose == 'function') {
+                if (params.onClose.call(m)===false) {
+                    return false;
+                }
+            }
+            hideElement(modalStack[i].el, modalStack[i].params.removeOnClose);
             modalStack.splice(i, 1);
             rearrangeStack ();
-            if (typeof params.onClose == 'function') {
-                params.onClose();
-            }
         }
         return false;
     }
@@ -107,19 +148,25 @@
     function filterInput(e) {
         if (modalStack.length > 0) {
             var m = modalStack[modalStack.length - 1];
-            if (e.which == 27 && !m.params.escNoClose) {
-                closeModal();
-            }
-            else if (e.which == 9) {
+            if (e.which == 9) {
                 var el = $(':focus');
-                if (el.closest('.modal').get(0) != m.el.get(0)) {
+                if (el.closest('.hmodal').get(0) != m.el.get(0)) {
                     m.el.focus();
                 }
             }
         }
     }
 
-    $(document).keydown(filterInput).keyup(filterInput).keypress(filterInput);
+    function filterEsc(e) {
+        if (modalStack.length > 0) {
+            var m = modalStack[modalStack.length - 1];
+            if (e.which == 27 && !m.params.escNoClose) {
+                closeModal();
+            }
+        }
+    }
+
+    $(document).keydown(filterInput).keyup(filterInput).keypress(filterInput).keydown(filterEsc);
 
     $.fn.hmodal = function (config) {
         if (config=='hide') {
