@@ -37,19 +37,24 @@
     function showElement(m) {
         if (!m.is(':visible')) {
             m.trigger('hmodal.show', m);
-            var screenH = pageblocker.outerHeight(true);
+            var screenH = pageblocker.outerHeight(true),
+                delta = modalStack.length * shift;
             m.css({
                 top: -screenH + 'px', 
-                'margin-top': (- Math.floor(m.outerHeight() / 2)) + 'px', 
+                'margin-top': (- Math.floor(m.outerHeight() / 2) + delta) + 'px', 
                 opacity: 0,
                 left: '50%',
-                'margin-left': (- Math.floor(m.outerWidth() / 2)) + 'px',
+                'margin-left': (- Math.floor(m.outerWidth() / 2)+ delta) + 'px',
                 'z-index': zStart + (zStep + 1) * modalStack.length, 
                 position: 'fixed'
-            });
+            }).show();
             m.addClass('shown');
             m.animate({top: Math.floor(screenH/2) + 'px', opacity: 1}, delay, function () {
                 m.attr('tabindex', 0).css('outline', 'none').css({top: '50%'}).focus();
+                var focusable = m.find('input:visible, button, a');
+                if (focusable.length > 0) {
+                    focusable.first().focus();
+                }
                 m.trigger('hmodal.shown', m);
             });
         }
@@ -102,7 +107,7 @@
             params = p || {};
         pageblocker = $('.pageblocker');
         if (pageblocker.length == 0) {
-            pageblocker = $('<div>').addClass('pageblocker').css({position: fixed, top: 0; left: 0; width: 100%; height: 100%;});
+            pageblocker = $('<div>').addClass('pageblocker').css({position: 'fixed', top: 0, left: 0, width: '100%', height: '100%'});
             pageblocker.click(function () { 
                 var params = modalStack[modalStack.length - 1].params;
                 if (params['shadeNoClose']) {
@@ -114,7 +119,7 @@
         }
         if (i<0) {
             if (m.closest('body').length==0) {
-                $('body').append(m);
+                $('body').append(m.hide());
                 params.removeOnClose = true;
             }
             m.addClass('hmodal');
@@ -125,6 +130,7 @@
                 e.preventDefault();
                 e.stopPropagation();
                 closeModal();
+                return false;
             });
         }
     }
@@ -173,7 +179,7 @@
             closeModal (this);
         }
         else {
-            openModal(this, config);
+            openModal(this, config || {});
         }
         return this;
     };
